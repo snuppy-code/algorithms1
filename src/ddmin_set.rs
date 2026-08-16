@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
-/// It semems like without chunking based on extra info about the inputs, the best we can do is some kind of balanced partition on `inp`.
+/// It seems like without chunking based on extra info about the inputs,
+/// the best we can do is some kind of balanced partition on `inp`.
 /// "balanced" as in the length of every chunk is +-1 of each other or equal.
 fn balanced_partition<'a, T: Ord>(inp: &BTreeSet<&'a T>, n: usize) -> Vec<BTreeSet<&'a T>> {
     assert!(n >= 2, "won't split into n>2 chunks !");
@@ -57,13 +58,23 @@ where
     return _ddmin(test, inp, std::cmp::min(n * 2, inp.len()));
 }
 
-/// BTreeSet is ordered, which means (if `test` is well behaved) this function is deterministic, and not just as an implementation detail.
-/// This Delta Debugging implementation intentionally does not attempt to do any smart chunking or keeping related objects together.
-/// `test` should return false if its inputs induced the failure.
+/// BTreeSet is ordered, which means (if `test` is well behaved) this function
+/// is deterministic, and not just as an implementation detail.
+/// This Delta Debugging implementation intentionally does not attempt to do
+/// any smart chunking or keeping related objects together.
+///
+/// `test` should return false if its inputs induced the relevant failure.
+///
+/// Delta Debugging only works if the input fails, so this should be tested
+/// on first run, but `test` may be terribly slow to run, in which case it
+/// is preferable to let the user pinky promise it fails, and skip this first check.
 pub fn ddmin<'a, T: Ord>(
     mut test: impl FnMut(&BTreeSet<&T>) -> bool,
     inp: &BTreeSet<&'a T>,
+    assume_input_fails: bool,
 ) -> BTreeSet<&'a T> {
-    assert!(!test(&inp), "input must fail !");
+    if !assume_input_fails {
+        assert!(!test(&inp), "input must fail !");
+    }
     _ddmin(test, inp, 2)
 }
