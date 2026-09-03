@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 /// [{1, 2, 3}, {4, 5}]
 /// [{1, 2}, {3, 4}, {5}]
 /// [{1, 2}, {3}, {4}, {5}]
-pub fn balanced_partition<'a, T: Ord + Copy>(set: &BTreeSet<T>, n: usize) -> Vec<BTreeSet<T>> {
+pub fn balanced_partition<T: Ord + Copy>(set: &BTreeSet<T>, n: usize) -> Vec<BTreeSet<T>> {
     let l = set.len();
     let excess = set.len() % n;
 

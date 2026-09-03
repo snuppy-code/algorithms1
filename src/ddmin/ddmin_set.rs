@@ -16,11 +16,11 @@ pub(crate) fn balanced_partition<'a, T: Ord + Copy>(
 }
 
 /// Internal implementation of outer `ddmin` function.
-fn _ddmin<'a, T>(
-    mut test: impl FnMut(&BTreeSet<&T>) -> bool,
-    inp: &BTreeSet<&'a T>,
+fn _ddmin<T: Copy>(
+    mut test: impl FnMut(&BTreeSet<T>) -> bool,
+    inp: &BTreeSet<T>,
     n: usize,
-) -> BTreeSet<&'a T>
+) -> BTreeSet<T>
 where
     T: Ord,
 {
@@ -64,13 +64,13 @@ where
 /// Delta Debugging only works if the input fails, so this should be tested
 /// on first run, but `test` may be terribly slow to run, so it
 /// is nice to let the user pinky promise it fails, and skip this first check.
-pub fn ddmin<'a, T: Ord>(
-    mut test: impl FnMut(&BTreeSet<&T>) -> bool,
-    inp: &BTreeSet<&'a T>,
+pub fn ddmin<T: Ord + Copy>(
+    mut test: impl FnMut(&BTreeSet<T>) -> bool,
+    inp: &BTreeSet<T>,
     assume_input_fails: bool,
-) -> BTreeSet<&'a T> {
+) -> BTreeSet<T> {
     if !assume_input_fails {
-        assert!(!test(&inp), "input must fail !");
+        assert!(!test(inp), "input must fail !");
     }
     _ddmin(test, inp, 2)
 }
