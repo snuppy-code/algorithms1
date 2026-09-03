@@ -67,8 +67,8 @@ where
 /// `test` should return false if its inputs induced the relevant failure.
 ///
 /// Delta Debugging only works if the input fails, so this should be tested
-/// on first run, but `test` may be terribly slow to run, in which case it
-/// is preferable to let the user pinky promise it fails, and skip this first check.
+/// on first run, but `test` may be terribly slow to run, so it
+/// is nice to let the user pinky promise it fails, and skip this first check.
 pub fn ddmin<'a, T: Ord>(
     mut test: impl FnMut(&BTreeSet<&T>) -> bool,
     inp: &BTreeSet<&'a T>,
