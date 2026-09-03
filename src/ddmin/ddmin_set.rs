@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 /// It seems like without chunking based on extra info about the inputs,
 /// the best we can do is some kind of balanced partition on `inp`.
 /// "balanced" as in the length of every chunk is +-1 of each other or equal.
-fn balanced_partition<'a, T: Ord>(inp: &BTreeSet<&'a T>, n: usize) -> Vec<BTreeSet<&'a T>> {
+fn balanced_partition<'a, T: Ord + Copy>(inp: &BTreeSet<T>, n: usize) -> Vec<BTreeSet<T>> {
     assert!(n >= 2, "won't split into n>2 chunks !");
     assert!(n <= inp.len(), "won't split into n>inp.len() chunks !");
 
