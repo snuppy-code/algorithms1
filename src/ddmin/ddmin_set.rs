@@ -9,7 +9,7 @@ pub(crate) fn balanced_partition<'a, T: Ord + Copy>(
     inp: &BTreeSet<T>,
     n: usize,
 ) -> Vec<BTreeSet<T>> {
-    assert!(n >= 2, "won't split into n>2 chunks !");
+    assert!(n >= 2, "won't split into n<2 chunks !");
     assert!(n <= inp.len(), "won't split into n>inp.len() chunks !");
 
     util::balanced_partition(inp, n)
