@@ -10,19 +10,11 @@ fn balanced_partition<'a, T: Ord>(inp: &BTreeSet<&'a T>, n: usize) -> Vec<BTreeS
     let each = inp.len() / n;
     let excess = inp.len() % n;
     let mut inp = inp.iter();
-    let a = &mut inp;
 
-    let mut excess_parts = (0..excess)
-        .map(|_| a.take(each + 1).copied().collect::<BTreeSet<&T>>())
-        .collect::<Vec<BTreeSet<&T>>>();
-    let mut small_parts = (excess..n)
-        .map(|_| a.take(each).copied().collect::<BTreeSet<&T>>())
-        .collect::<Vec<BTreeSet<&T>>>();
+    let mut excess_parts = (0..excess).map(|_| inp.take(each + 1));
+    let mut small_parts = (excess..n).map(|_| inp.take(each));
 
-    excess_parts.append(&mut small_parts);
-    let chunks = excess_parts;
-
-    chunks
+    excess_parts.chain(small_parts).collect()
 }
 
 /// Internal implementation of outer `ddmin` function.
