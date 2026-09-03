@@ -1,23 +1,18 @@
 use std::collections::BTreeSet;
 
+use crate::util;
+
 /// It seems like without chunking based on extra info about the inputs,
 /// the best we can do is some kind of balanced partition on `inp`.
 /// "balanced" as in the length of every chunk is +-1 of each other or equal.
-fn balanced_partition<'a, T: Ord + Copy>(inp: &BTreeSet<T>, n: usize) -> Vec<BTreeSet<T>> {
+pub(crate) fn balanced_partition<'a, T: Ord + Copy>(
+    inp: &BTreeSet<T>,
+    n: usize,
+) -> Vec<BTreeSet<T>> {
     assert!(n >= 2, "won't split into n>2 chunks !");
     assert!(n <= inp.len(), "won't split into n>inp.len() chunks !");
 
-    let each = inp.len() / n;
-    let excess = inp.len() % n;
-    let mut inp = inp.iter().copied();
-    let inp = inp.by_ref();
-
-    let mut partition = Vec::with_capacity(n);
-
-    partition.extend((0..excess).map(|_| inp.take(each + 1).collect()));
-    partition.extend((excess..n).map(|_| inp.take(each).collect()));
-
-    partition
+    util::balanced_partition(inp, n)
 }
 
 /// Internal implementation of outer `ddmin` function.
