@@ -1,17 +1,26 @@
 use algorithms::ddmin::ddmin_set::ddmin;
 use criterion::{Criterion, criterion_group, criterion_main};
+use rand::prelude::*;
 use std::{collections::BTreeSet, hint::black_box};
 
-fn mytest(inp: &BTreeSet<&i32>) -> bool {
-    !(inp.contains(&536) && inp.contains(&48143) && inp.contains(&279958))
-}
-
 fn criterion_benchmark(c: &mut Criterion) {
-    let x = (0..300_000).collect::<Vec<i32>>();
-    let y = x.iter().collect::<BTreeSet<&i32>>();
+    let set_size: usize = 500;
+    let troublemakers: usize = 6;
+
+    let set = (0..set_size).collect::<BTreeSet<usize>>();
+
+    let nums: BTreeSet<usize> = {
+        let mut rng = rand::rng();
+        let mut nums = BTreeSet::new();
+        while nums.len() < troublemakers {
+            nums.insert(rng.random_range(0..set_size));
+        }
+        nums
+    };
+    let test = |v: &BTreeSet<usize>| v.is_disjoint(&nums);
 
     c.bench_function("ddmin", |b| {
-        b.iter(|| ddmin(mytest, black_box(&y), true));
+        b.iter(|| ddmin(black_box(test), black_box(&set), true));
     });
 }
 
