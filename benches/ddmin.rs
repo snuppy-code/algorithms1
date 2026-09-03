@@ -4,6 +4,8 @@ use rand::prelude::*;
 use std::{collections::BTreeSet, hint::black_box};
 
 fn criterion_benchmark(c: &mut Criterion) {
+    let mut g = c.benchmark_group("ddmin");
+
     let set_size: usize = 500;
     let troublemakers: usize = 6;
 
@@ -19,9 +21,14 @@ fn criterion_benchmark(c: &mut Criterion) {
     };
     let test = |v: &BTreeSet<usize>| v.is_disjoint(&nums);
 
-    c.bench_function("ddmin", |b| {
+    g.bench_function("w/ sets", |b| {
         b.iter(|| ddmin(black_box(test), black_box(&set), true));
     });
+    g.bench_function("w/ vecs", |b| {
+        b.iter(|| ddmin(black_box(test), black_box(&set), true));
+    });
+
+    g.finish();
 }
 
 criterion_group!(benches, criterion_benchmark);
