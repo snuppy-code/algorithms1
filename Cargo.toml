@@ -1,5 +1,5 @@
 [package]
-name = "ddmin1"
+name = "algorithms"
 version = "0.1.0"
 edition = "2024"
 
@@ -7,5 +7,5 @@ edition = "2024"
 criterion = "0.8.2"
 
 [[bench]]
-name = "ddminstuff"
+name = "ddmin"
 harness = false

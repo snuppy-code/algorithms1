@@ -1,5 +1,5 @@
+use algorithms::ddmin::ddmin_set::ddmin;
 use criterion::{Criterion, criterion_group, criterion_main};
-use ddmin1::ddmin_set::ddmin;
 use std::{collections::BTreeSet, hint::black_box};
 
 fn mytest(inp: &BTreeSet<&i32>) -> bool {

@@ -1,1 +1,1 @@
-pub mod ddmin_set;
+pub mod ddmin;
