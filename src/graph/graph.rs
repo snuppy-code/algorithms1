@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fmt::Display,
+    usize,
 };
 
 use thiserror::Error;
@@ -98,6 +99,21 @@ impl<T> Graph<T> {
         self.neighbor_sets
             .get(&u_id)
             .map(|(_, neighbors)| neighbors)
+    }
+    pub fn components(&self) -> HashSet<HashSet<NodeID>> {
+        todo!();
+    }
+    fn components_dfs_full(&self) -> HashSet<HashSet<NodeID>> {
+        todo!();
+    }
+    fn components_dfs_visit(&self) -> HashSet<HashSet<NodeID>> {
+        todo!();
+    }
+    pub fn components_overview(&self) -> usize {
+        todo!();
+    }
+    pub fn is_connected(&self) -> bool {
+        todo!();
     }
 }
 
