@@ -1,3 +1,3 @@
-This is just nya messing around with ddmin to learn it for a project,,
+Some various algorithms and datastructures. Started as "ddmin1" which is why the history is Like That
 
-All code here written by nya, a human.
+All code here written by me for the purposes of learning
