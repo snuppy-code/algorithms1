@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 criterion = "0.8.2"
 rand = "0.10.2"
+thiserror = "2.0.21"
 
 [[bench]]
 name = "ddmin"
