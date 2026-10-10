@@ -15,7 +15,9 @@ fn main() -> Result<()> {
     g.insert_edge(n2, n3)?;
 
     let n_not_in = nodeid_gen.create_id(); // nodeid is not used by a node in g
-    g.insert_edge(n1, n_not_in)?;
+    // g.insert_edge(n1, n_not_in)?;
+
+    println!("{}: '{}'", n3, g.node_ref_by_id(n3).unwrap().data);
 
     Ok(())
 }

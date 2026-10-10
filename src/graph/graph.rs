@@ -28,6 +28,7 @@ impl Display for NodeID {
     }
 }
 
+#[derive(Debug)]
 pub struct Node<T> {
     pub data: T,
     id: NodeID,
@@ -89,6 +90,14 @@ impl<T> Graph<T> {
         debug_assert_eq!(v.get_id(), v_id);
         v_neighbor_set.insert(u_id);
         Ok(())
+    }
+    pub fn node_ref_by_id(&self, u_id: NodeID) -> Option<&Node<T>> {
+        self.neighbor_sets.get(&u_id).map(|(u, _)| u)
+    }
+    pub fn neighbors(&self, u_id: NodeID) -> Option<&HashSet<NodeID>> {
+        self.neighbor_sets
+            .get(&u_id)
+            .map(|(_, neighbors)| neighbors)
     }
 }
 
