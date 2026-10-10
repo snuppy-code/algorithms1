@@ -8,6 +8,9 @@ criterion = "0.8.2"
 rand = "0.10.2"
 thiserror = "2.0.21"
 
+[dev-dependencies]
+anyhow = "1.0.104"
+
 [[bench]]
 name = "ddmin"
 harness = false
