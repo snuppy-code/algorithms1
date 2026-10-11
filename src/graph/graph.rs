@@ -20,7 +20,7 @@ impl NodeIDGenerator {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
 pub struct NodeID(u64);
 
 impl Display for NodeID {
@@ -43,6 +43,7 @@ impl<T> Node<T> {
     }
 }
 
+/// Directed, unweighted graph.
 pub struct Graph<T> {
     neighbor_sets: HashMap<NodeID, NodeEntry<T>>,
 }
@@ -72,7 +73,11 @@ impl<T> Graph<T> {
             Ok(u_id)
         }
     }
-    pub fn insert_edge(&mut self, u_id: NodeID, v_id: NodeID) -> Result<(), InsertEdgeError> {
+    fn prep_insert_edge(
+        &mut self,
+        u_id: NodeID,
+        v_id: NodeID,
+    ) -> Result<(&mut NodeEntry<T>, &mut NodeEntry<T>), InsertEdgeError> {
         let contains_u = self.neighbor_sets.contains_key(&u_id);
         let contains_v = self.neighbor_sets.contains_key(&v_id);
 
@@ -89,20 +94,26 @@ impl<T> Graph<T> {
             });
         }
 
-        let NodeEntry {
-            node: u,
-            neighbors: u_neighbors,
-        } = self.neighbor_sets.get_mut(&u_id).expect("we just checked");
-        debug_assert_eq!(u.get_id(), u_id);
-        u_neighbors.insert(v_id);
+        let [u_entry, v_entry] = self
+            .neighbor_sets
+            .get_disjoint_mut([&u_id, &v_id])
+            .map(|v| {
+                v.expect(
+                    "we have held a mutable borrow on self since we checked that these nodes exist",
+                )
+            });
 
-        let NodeEntry {
-            node: v,
-            neighbors: v_neighbor_set,
-        } = self.neighbor_sets.get_mut(&v_id).expect("we just checked");
-        debug_assert_eq!(v.get_id(), v_id);
-        v_neighbor_set.insert(u_id);
-
+        Ok((u_entry, v_entry))
+    }
+    pub fn insert_edge(&mut self, u_id: NodeID, v_id: NodeID) -> Result<(), InsertEdgeError> {
+        let (u, _) = self.prep_insert_edge(u_id, v_id)?;
+        u.neighbors.insert(v_id);
+        Ok(())
+    }
+    pub fn insert_bi_edge(&mut self, u_id: NodeID, v_id: NodeID) -> Result<(), InsertEdgeError> {
+        let (u, v) = self.prep_insert_edge(u_id, v_id)?;
+        u.neighbors.insert(v_id);
+        v.neighbors.insert(u_id);
         Ok(())
     }
     pub fn remove_node(&mut self, u_id: NodeID) -> Result<NodeEntry<T>, RemoveNodeError> {
@@ -128,17 +139,33 @@ impl<T> Graph<T> {
         let mut visited = HashSet::new();
 
         for (u_id, _) in &self.neighbor_sets {
-            if visited.contains(&u_id) {
+            if visited.contains(u_id) {
                 continue;
             }
-            visited.insert(u_id);
-            components.insert(self.component_dfs_visit(*u_id));
+            let mut component = BTreeSet::new();
+            self.component_dfs_visit(*u_id, &mut visited, &mut component);
+            components.insert(component);
         }
 
         components
     }
-    fn component_dfs_visit(&self, u_id: NodeID) -> BTreeSet<NodeID> {
-        todo!();
+    fn component_dfs_visit(
+        &self,
+        u_id: NodeID,
+        visited: &mut HashSet<NodeID>,
+        component: &mut BTreeSet<NodeID>,
+    ) {
+        visited.insert(u_id);
+        component.insert(u_id);
+        for v_id in self
+            .neighbors_ref(u_id)
+            .expect("every node has a neighborset (because types), and u should be in the graph")
+        {
+            if visited.contains(v_id) {
+                continue;
+            }
+            self.component_dfs_visit(*v_id, visited, component)
+        }
     }
     pub fn components_overview(&self) -> usize {
         todo!();
