@@ -44,7 +44,7 @@ impl<T> Node<T> {
 }
 
 pub struct Graph<T> {
-    neighbor_sets: HashMap<NodeID, (Node<T>, HashSet<NodeID>)>,
+    neighbor_sets: HashMap<NodeID, NodeEntry<T>>,
 }
 
 impl<T> Graph<T> {
@@ -53,17 +53,23 @@ impl<T> Graph<T> {
             neighbor_sets: HashMap::new(),
         };
     }
-    pub fn insert_node(&mut self, n: Node<T>) -> Result<NodeID, InsertNodeError> {
-        let id = n.id;
-        if self.neighbor_sets.contains_key(&id) {
-            Err(InsertNodeError::ExistingID(id))
+    pub fn insert_node(&mut self, u: Node<T>) -> Result<NodeID, InsertNodeError> {
+        let u_id = u.id;
+        if self.neighbor_sets.contains_key(&u_id) {
+            Err(InsertNodeError::ExistingID(u_id))
         } else {
             debug_assert!(
                 self.neighbor_sets
-                    .insert(n.id, (n, HashSet::new()))
+                    .insert(
+                        u.id,
+                        NodeEntry {
+                            node: u,
+                            neighbors: HashSet::new()
+                        }
+                    )
                     .is_none()
             );
-            Ok(id)
+            Ok(u_id)
         }
     }
     pub fn insert_edge(&mut self, u_id: NodeID, v_id: NodeID) -> Result<(), InsertEdgeError> {
@@ -83,30 +89,55 @@ impl<T> Graph<T> {
             });
         }
 
-        let (u, u_neighbor_set) = self.neighbor_sets.get_mut(&u_id).expect("we just checked");
+        let NodeEntry {
+            node: u,
+            neighbors: u_neighbors,
+        } = self.neighbor_sets.get_mut(&u_id).expect("we just checked");
         debug_assert_eq!(u.get_id(), u_id);
-        u_neighbor_set.insert(v_id);
+        u_neighbors.insert(v_id);
 
-        let (v, v_neighbor_set) = self.neighbor_sets.get_mut(&v_id).expect("we just checked");
+        let NodeEntry {
+            node: v,
+            neighbors: v_neighbor_set,
+        } = self.neighbor_sets.get_mut(&v_id).expect("we just checked");
         debug_assert_eq!(v.get_id(), v_id);
         v_neighbor_set.insert(u_id);
+
         Ok(())
     }
-    pub fn node_ref_by_id(&self, u_id: NodeID) -> Option<&Node<T>> {
-        self.neighbor_sets.get(&u_id).map(|(u, _)| u)
+    pub fn remove_node(&mut self, u_id: NodeID) -> Result<NodeEntry<T>, RemoveNodeError> {
+        let u_entry = self
+            .neighbor_sets
+            .remove(&u_id)
+            .ok_or(RemoveNodeError::NoSuchNode(u_id))?;
+
+        for (_, v_entry) in self.neighbor_sets.iter_mut() {
+            v_entry.neighbors.remove(&u_id);
+        }
+
+        Ok(u_entry)
     }
-    pub fn neighbors(&self, u_id: NodeID) -> Option<&HashSet<NodeID>> {
-        self.neighbor_sets
-            .get(&u_id)
-            .map(|(_, neighbors)| neighbors)
+    pub fn node_ref(&self, u_id: NodeID) -> Option<&Node<T>> {
+        self.neighbor_sets.get(&u_id).map(|entry| &entry.node)
     }
-    pub fn components(&self) -> HashSet<HashSet<NodeID>> {
-        todo!();
+    pub fn neighbors_ref(&self, u_id: NodeID) -> Option<&HashSet<NodeID>> {
+        self.neighbor_sets.get(&u_id).map(|entry| &entry.neighbors)
     }
-    fn components_dfs_full(&self) -> HashSet<HashSet<NodeID>> {
-        todo!();
+    pub fn components_dfs_full(&self) -> HashSet<BTreeSet<NodeID>> {
+        let mut components = HashSet::new();
+        let mut visited = HashSet::new();
+
+        for (u_id, _) in &self.neighbor_sets {
+            if visited.contains(&u_id) {
+                continue;
+            }
+            visited.insert(u_id);
+            components.insert(self.component_dfs_visit(*u_id));
+        }
+
+        components
     }
-    fn components_dfs_visit(&self) -> HashSet<HashSet<NodeID>> {
+    fn component_dfs_visit(&self, u_id: NodeID) -> BTreeSet<NodeID> {
         todo!();
     }
     pub fn components_overview(&self) -> usize {
@@ -117,12 +148,23 @@ impl<T> Graph<T> {
     }
 }
 
+#[derive(Debug)]
+pub struct NodeEntry<T> {
+    node: Node<T>,
+    neighbors: HashSet<NodeID>,
+}
+
 #[derive(Debug, Error)]
 pub enum InsertNodeError {
     #[error(
         "failed to insert node with id: {0}, because a node with that ID is already in the graph"
     )]
     ExistingID(NodeID),
+}
+#[derive(Debug, Error)]
+pub enum RemoveNodeError {
+    #[error("failed to remove node with id: {0}, because no node with that ID exists in the graph")]
+    NoSuchNode(NodeID),
 }
 
 #[derive(Debug, Error)]
