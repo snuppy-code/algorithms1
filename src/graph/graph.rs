@@ -44,6 +44,12 @@ impl<T> Node<T> {
     }
 }
 
+#[derive(Debug)]
+pub struct NodeEntry<T> {
+    node: Node<T>,
+    neighbors: HashSet<NodeID>,
+}
+
 /// Directed, unweighted graph.
 pub struct Graph<T> {
     neighbor_sets: HashMap<NodeID, NodeEntry<T>>,
@@ -255,25 +261,13 @@ impl<T> Graph<T> {
     }
 }
 
-#[derive(Debug)]
-pub struct NodeEntry<T> {
-    node: Node<T>,
-    neighbors: HashSet<NodeID>,
-}
+#[derive(Debug, Error)]
+#[error("failed to insert {0}, because a node with that ID is already in the graph")]
+pub struct InsertNodeError(NodeID);
 
 #[derive(Debug, Error)]
-pub enum InsertNodeError {
-    #[error(
-        "failed to insert node with id: {0}, because a node with that ID is already in the graph"
-    )]
-    ExistingID(NodeID),
-}
-
-#[derive(Debug, Error)]
-pub enum RemoveNodeError {
-    #[error("failed to remove node with id: {0}, because no node with that ID exists in the graph")]
-    NoSuchNode(NodeID),
-}
+#[error("failed to remove {0}, because no node with that ID exists in the graph")]
+pub struct RemoveNodeError(NodeID);
 
 #[derive(Debug, Error)]
 #[error("failed to get size of {0}'s component, because no node with that ID exists in the graph")]
