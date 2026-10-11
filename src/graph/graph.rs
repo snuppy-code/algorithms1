@@ -82,18 +82,7 @@ impl<T> Graph<T> {
         let contains_u = self.neighbor_sets.contains_key(&u_id);
         let contains_v = self.neighbor_sets.contains_key(&v_id);
 
-        if !(contains_u && contains_v) {
-            return Err(InsertEdgeError::MissingNodes {
-                u: InGraph {
-                    id: u_id,
-                    was: contains_u,
-                },
-                v: InGraph {
-                    id: v_id,
-                    was: contains_v,
-                },
-            });
-        }
+        MissingNodesError::if_missing(contains_u, u_id, contains_v, v_id)?;
 
         let [u_entry, v_entry] = self
             .neighbor_sets
@@ -279,46 +268,48 @@ pub enum InsertNodeError {
     )]
     ExistingID(NodeID),
 }
+
 #[derive(Debug, Error)]
 pub enum RemoveNodeError {
     #[error("failed to remove node with id: {0}, because no node with that ID exists in the graph")]
     NoSuchNode(NodeID),
 }
+
 #[derive(Debug, Error)]
 #[error("failed to get size of {0}'s component, because no node with that ID exists in the graph")]
 pub struct GetComponentSizeError(NodeID);
 
 #[derive(Debug, Error)]
-pub enum InsertEdgeError {
-    MissingNodes { u: InGraph, v: InGraph },
-}
-#[derive(Debug)]
-pub struct InGraph {
-    id: NodeID,
-    was: bool,
-}
+#[error("failed to insert edge due to missing nodes")]
+pub struct InsertEdgeError(#[from] MissingNodesError);
 
-impl Display for InsertEdgeError {
+#[derive(Debug, Error)]
+pub enum MissingNodesError {
+    NeededUAndV(NodeID, NodeID),
+    NeededU(NodeID),
+    NeededV(NodeID),
+}
+impl Display for MissingNodesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MissingNodes { u, v } => match (u, v) {
-                (InGraph { id: u, was: true }, InGraph { id: v, was: true }) => write!(
-                    f,
-                    "failed to insert edge u: {u} -> v: {v} because u: {u}, v: {v} were not in the graph"
-                ),
-                (InGraph { id: u, was: true }, InGraph { id: v, was: false }) => write!(
-                    f,
-                    "failed to insert edge u: {u} -> v: {v} because u: {u} was not in the graph"
-                ),
-                (InGraph { id: u, was: false }, InGraph { id: v, was: true }) => write!(
-                    f,
-                    "failed to insert edge u: {u} -> v: {v} because v: {v} was not in the graph",
-                ),
-                (InGraph { id: u, was: false }, InGraph { id: v, was: false }) => write!(
-                    f,
-                    "failed to insert edge u: {u} -> v: {v} because of.. an impossible error! report to library"
-                ),
-            },
+            Self::NeededUAndV(u, v) => write!(f, "u: {u} and v: {v} were not in the graph"),
+            Self::NeededU(u) => write!(f, "u: {u} was not in the graph"),
+            Self::NeededV(v) => write!(f, "v: {v} was not in the graph"),
+        }
+    }
+}
+impl MissingNodesError {
+    pub fn if_missing(
+        u_exists: bool,
+        u_id: NodeID,
+        v_exists: bool,
+        v_id: NodeID,
+    ) -> Result<(), MissingNodesError> {
+        match (u_exists, v_exists) {
+            (true, true) => Ok(()),
+            (true, false) => Err(MissingNodesError::NeededV(v_id)),
+            (false, true) => Err(MissingNodesError::NeededU(u_id)),
+            (false, false) => Err(MissingNodesError::NeededUAndV(u_id, v_id)),
         }
     }
 }

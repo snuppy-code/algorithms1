@@ -17,8 +17,8 @@ fn main() -> Result<()> {
     g.insert_edge(n1_id, n4_id)?;
     g.insert_bi_edge(n5_id, n6_id)?;
 
-    // let n_not_in = nodeid_gen.create_id(); // nodeid is not used by a node in g
-    // g.insert_edge(n1, n_not_in)?;
+    let n_not_in = nodeid_gen.create_id(); // nodeid is not used by a node in g
+    g.insert_edge(n1_id, n_not_in)?;
 
     // println!("{}: '{}'", n3_id, g.node_ref(n3_id).unwrap().data);
     println!("{:?}", g.components_dfs_recursive());
