@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fmt::Display,
+    ops::Deref,
     usize,
 };
 
@@ -134,7 +135,8 @@ impl<T> Graph<T> {
     pub fn neighbors_ref(&self, u_id: NodeID) -> Option<&HashSet<NodeID>> {
         self.neighbor_sets.get(&u_id).map(|entry| &entry.neighbors)
     }
-    pub fn components_dfs_full(&self) -> HashSet<BTreeSet<NodeID>> {
+
+    pub fn components_dfs_recursive(&self) -> HashSet<BTreeSet<NodeID>> {
         let mut components = HashSet::new();
         let mut visited = HashSet::new();
 
@@ -143,35 +145,124 @@ impl<T> Graph<T> {
                 continue;
             }
             let mut component = BTreeSet::new();
-            self.component_dfs_visit(*u_id, &mut visited, &mut component);
+            self.component_dfs_visit_recursive(*u_id, &mut visited, &mut component);
             components.insert(component);
         }
 
         components
     }
-    fn component_dfs_visit(
+    fn component_dfs_visit_recursive(
         &self,
-        u_id: NodeID,
+        s_id: NodeID,
         visited: &mut HashSet<NodeID>,
         component: &mut BTreeSet<NodeID>,
     ) {
-        visited.insert(u_id);
-        component.insert(u_id);
-        for v_id in self
-            .neighbors_ref(u_id)
-            .expect("every node has a neighborset (because types), and u should be in the graph")
-        {
-            if visited.contains(v_id) {
+        visited.insert(s_id);
+        component.insert(s_id);
+        for u_id in self.neighbors_ref(s_id).expect("u should be in the graph") {
+            if visited.contains(u_id) {
                 continue;
             }
-            self.component_dfs_visit(*v_id, visited, component)
+            self.component_dfs_visit_recursive(*u_id, visited, component)
         }
     }
-    pub fn components_overview(&self) -> usize {
-        todo!();
+
+    pub fn components_dfs_iterative(&self) -> HashSet<BTreeSet<NodeID>> {
+        let mut components = HashSet::new();
+        let mut visited = HashSet::new();
+
+        for (u_id, _) in &self.neighbor_sets {
+            if visited.contains(u_id) {
+                continue;
+            }
+            let component = self.component_dfs_visit_iterative(*u_id, &mut visited);
+            components.insert(component);
+        }
+
+        components
     }
+    fn component_dfs_visit_iterative(
+        &self,
+        s_id: NodeID,
+        visited: &mut HashSet<NodeID>,
+    ) -> BTreeSet<NodeID> {
+        let mut stack = vec![s_id];
+        let mut component = BTreeSet::new();
+
+        while !stack.is_empty() {
+            let u_id = stack.pop().expect("just checked not empty");
+            let u_neighbors = self.neighbors_ref(u_id).expect("u should be in the graph");
+
+            visited.insert(u_id);
+            component.insert(u_id);
+
+            stack.extend(u_neighbors.iter().filter(|v_id| !visited.contains(v_id)));
+        }
+
+        component
+    }
+
+    pub fn get_component_size(&self, s_id: NodeID) -> Result<usize, GetComponentSizeError> {
+        if !self.neighbor_sets.contains_key(&s_id) {
+            return Err(GetComponentSizeError(s_id));
+        }
+        let mut visited = HashSet::new();
+        Ok(self.component_size_dfs_visit_iterative(s_id, &mut visited))
+    }
+    /// Returns a map from sizes of components to amount of such-sized components
+    pub fn components_sizes(&self) -> HashMap<usize, usize> {
+        let mut visited = HashSet::new();
+        let mut components = HashMap::new();
+        for (u_id, _) in &self.neighbor_sets {
+            if visited.contains(u_id) {
+                continue;
+            }
+            let component_size = self.component_size_dfs_visit_iterative(*u_id, &mut visited);
+            components
+                .entry(component_size)
+                .and_modify(|n| *n += 1)
+                .or_insert(1);
+        }
+        components
+    }
+    // precondition: node s exists in graph
+    fn component_size_dfs_visit_iterative(
+        &self,
+        s: NodeID,
+        visited: &mut HashSet<NodeID>,
+    ) -> usize {
+        let mut stack = vec![s];
+        let mut component_size = 0;
+        while !stack.is_empty() {
+            let u_id = stack.pop().expect("just checked not empty");
+            let u_neighbors = self.neighbors_ref(u_id).expect("u should be in the graph");
+
+            component_size += 1;
+            visited.insert(u_id);
+
+            for v_id in u_neighbors {
+                if visited.contains(v_id) {
+                    continue;
+                }
+                stack.push(*v_id);
+            }
+        }
+        component_size
+    }
+
+    pub fn get_arbitrary_id(&self) -> Option<NodeID> {
+        Some(*self.neighbor_sets.iter().next()?.0)
+    }
+
     pub fn is_connected(&self) -> bool {
-        todo!();
+        let Some(s_id) = self.get_arbitrary_id() else {
+            return false;
+        };
+        let s_component_size = self
+            .get_component_size(s_id)
+            .expect("s should be in the graph");
+
+        s_component_size == self.neighbor_sets.len()
     }
 }
 
@@ -193,6 +284,9 @@ pub enum RemoveNodeError {
     #[error("failed to remove node with id: {0}, because no node with that ID exists in the graph")]
     NoSuchNode(NodeID),
 }
+#[derive(Debug, Error)]
+#[error("failed to get size of {0}'s component, because no node with that ID exists in the graph")]
+pub struct GetComponentSizeError(NodeID);
 
 #[derive(Debug, Error)]
 pub enum InsertEdgeError {

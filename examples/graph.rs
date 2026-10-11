@@ -21,9 +21,12 @@ fn main() -> Result<()> {
     // g.insert_edge(n1, n_not_in)?;
 
     // println!("{}: '{}'", n3_id, g.node_ref(n3_id).unwrap().data);
-
-    let x = g.components_dfs_full();
-    println!("{:?}", x);
+    println!("{:?}", g.components_dfs_recursive());
+    println!("{:?}", g.components_dfs_iterative());
+    println!("{:?}", g.components_sizes());
+    println!("{:?}", g.get_component_size(n1_id)?);
+    println!("{:?}", g.get_component_size(n5_id)?);
+    println!("{:?}", g.is_connected());
 
     Ok(())
 }
