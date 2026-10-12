@@ -259,6 +259,43 @@ impl<T> Graph<T> {
 
         s_component_size == self.neighbor_sets.len()
     }
+
+    pub fn shortest_path(
+        &self,
+        u_id: NodeID,
+        v_id: NodeID,
+    ) -> Result<Vec<NodeID>, GetShortestPathError> {
+        let contains_u = self.neighbor_sets.contains_key(&u_id);
+        let contains_v = self.neighbor_sets.contains_key(&v_id);
+
+        if !(contains_u && contains_v) {
+            return Err(GetShortestPathError::MissingNodes {
+                u: InGraph {
+                    id: u_id,
+                    was: contains_u,
+                },
+                v: InGraph {
+                    id: v_id,
+                    was: contains_v,
+                },
+            });
+        }
+
+        let [u_entry, v_entry] = self
+            .neighbor_sets
+            .get_disjoint_mut([&u_id, &v_id])
+            .map(|v| {
+                v.expect(
+                    "we have held a mutable borrow on self since we checked that these nodes exist",
+                )
+            });
+    }
+    fn shortest_path_bfs_visit(
+        &self,
+        u_id: NodeID,
+        v_id: NodeID,
+    ) -> Result<Vec<NodeID>, GetShortestPathError> {
+    }
 }
 
 #[derive(Debug, Error)]
@@ -307,3 +344,7 @@ impl MissingNodesError {
         }
     }
 }
+
+#[derive(Debug, Error)]
+#[error("failed to get shortest path due to missing nodes")]
+pub struct GetShortestPathError(#[from] MissingNodesError);
