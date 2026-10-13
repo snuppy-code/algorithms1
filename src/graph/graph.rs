@@ -7,6 +7,8 @@ use std::{
 
 use thiserror::Error;
 
+use crate::graph::graph::MissingNodesError::{U, UV};
+
 // invariant: next_id is monotonically increasing
 pub struct NodeIDGenerator {
     next_id: u64,
@@ -63,8 +65,8 @@ impl<T> Graph<T> {
     }
     pub fn insert_node(&mut self, u: Node<T>) -> Result<NodeID, InsertNodeError> {
         let u_id = u.id;
-        if self.neighbor_sets.contains_key(&u_id) {
-            Err(InsertNodeError::ExistingID(u_id))
+        if self.contains(u_id) {
+            Err(InsertNodeError(u_id))
         } else {
             debug_assert!(
                 self.neighbor_sets
@@ -80,43 +82,24 @@ impl<T> Graph<T> {
             Ok(u_id)
         }
     }
-    fn prep_insert_edge(
-        &mut self,
-        u_id: NodeID,
-        v_id: NodeID,
-    ) -> Result<(&mut NodeEntry<T>, &mut NodeEntry<T>), InsertEdgeError> {
-        let contains_u = self.neighbor_sets.contains_key(&u_id);
-        let contains_v = self.neighbor_sets.contains_key(&v_id);
-
-        MissingNodesError::if_missing(contains_u, u_id, contains_v, v_id)?;
-
-        let [u_entry, v_entry] = self
-            .neighbor_sets
-            .get_disjoint_mut([&u_id, &v_id])
-            .map(|v| {
-                v.expect(
-                    "we have held a mutable borrow on self since we checked that these nodes exist",
-                )
-            });
-
-        Ok((u_entry, v_entry))
-    }
     pub fn insert_edge(&mut self, u_id: NodeID, v_id: NodeID) -> Result<(), InsertEdgeError> {
-        let (u, _) = self.prep_insert_edge(u_id, v_id)?;
-        u.neighbors.insert(v_id);
+        self.ensure_uv(u_id, v_id)?;
+        let u_entry = self.entry_mut_by_id(u_id).expect("just ensured u exists");
+        u_entry.neighbors.insert(v_id);
         Ok(())
     }
-    pub fn insert_bi_edge(&mut self, u_id: NodeID, v_id: NodeID) -> Result<(), InsertEdgeError> {
-        let (u, v) = self.prep_insert_edge(u_id, v_id)?;
-        u.neighbors.insert(v_id);
-        v.neighbors.insert(u_id);
+    pub fn insert_bi_edge(&mut self, u_id: NodeID, v_id: NodeID) -> Result<(), InsertBiEdgeError> {
+        let (u_entry, v_entry) = self.two_entries_mut_by_id(u_id, v_id)?;
+
+        u_entry.neighbors.insert(v_id);
+        v_entry.neighbors.insert(u_id);
         Ok(())
     }
     pub fn remove_node(&mut self, u_id: NodeID) -> Result<NodeEntry<T>, RemoveNodeError> {
         let u_entry = self
             .neighbor_sets
             .remove(&u_id)
-            .ok_or(RemoveNodeError::NoSuchNode(u_id))?;
+            .ok_or(RemoveNodeError(MissingUError(u_id)))?;
 
         for (_, v_entry) in self.neighbor_sets.iter_mut() {
             v_entry.neighbors.remove(&u_id);
@@ -154,7 +137,10 @@ impl<T> Graph<T> {
     ) {
         visited.insert(s_id);
         component.insert(s_id);
-        for u_id in self.neighbors_ref(s_id).expect("u should be in the graph") {
+        for u_id in self
+            .neighbors_ref(s_id)
+            .expect("the graph should not have been mutated since we pushed this node")
+        {
             if visited.contains(u_id) {
                 continue;
             }
@@ -186,7 +172,9 @@ impl<T> Graph<T> {
 
         while !stack.is_empty() {
             let u_id = stack.pop().expect("just checked not empty");
-            let u_neighbors = self.neighbors_ref(u_id).expect("u should be in the graph");
+            let u_neighbors = self
+                .neighbors_ref(u_id)
+                .expect("the graph should not have been mutated since we pushed this node");
 
             visited.insert(u_id);
             component.insert(u_id);
@@ -198,9 +186,7 @@ impl<T> Graph<T> {
     }
 
     pub fn get_component_size(&self, s_id: NodeID) -> Result<usize, GetComponentSizeError> {
-        if !self.neighbor_sets.contains_key(&s_id) {
-            return Err(GetComponentSizeError(s_id));
-        }
+        self.ensure_u(s_id)?;
         let mut visited = HashSet::new();
         Ok(self.component_size_dfs_visit_iterative(s_id, &mut visited))
     }
@@ -245,106 +231,179 @@ impl<T> Graph<T> {
         component_size
     }
 
-    pub fn get_arbitrary_id(&self) -> Option<NodeID> {
+    pub fn arbitrary_member_id(&self) -> Option<NodeID> {
         Some(*self.neighbor_sets.iter().next()?.0)
     }
 
     pub fn is_connected(&self) -> bool {
-        let Some(s_id) = self.get_arbitrary_id() else {
-            return false;
+        let Some(s_id) = self.arbitrary_member_id() else {
+            return true;
         };
         let s_component_size = self
             .get_component_size(s_id)
-            .expect("s should be in the graph");
+            .expect("this part of the function can't run if s isn't in the graph");
 
         s_component_size == self.neighbor_sets.len()
     }
 
     pub fn shortest_path(
         &self,
-        u_id: NodeID,
-        v_id: NodeID,
+        s_id: NodeID,
+        e_id: NodeID,
     ) -> Result<Vec<NodeID>, GetShortestPathError> {
-        let contains_u = self.neighbor_sets.contains_key(&u_id);
-        let contains_v = self.neighbor_sets.contains_key(&v_id);
+        let (s_entry, e_entry) = self.two_entries_by_id(s_id, e_id)?;
 
-        if !(contains_u && contains_v) {
-            return Err(GetShortestPathError::MissingNodes {
-                u: InGraph {
-                    id: u_id,
-                    was: contains_u,
-                },
-                v: InGraph {
-                    id: v_id,
-                    was: contains_v,
-                },
-            });
-        }
-
-        let [u_entry, v_entry] = self
-            .neighbor_sets
-            .get_disjoint_mut([&u_id, &v_id])
-            .map(|v| {
-                v.expect(
-                    "we have held a mutable borrow on self since we checked that these nodes exist",
-                )
-            });
+        todo!()
     }
     fn shortest_path_bfs_visit(
         &self,
+        s_id: NodeID,
+        e_id: NodeID,
+    ) -> Result<Vec<NodeID>, GetShortestPathError> {
+        todo!();
+    }
+
+    pub fn contains(&self, u_id: NodeID) -> bool {
+        self.neighbor_sets.contains_key(&u_id)
+    }
+
+    pub fn ensure_u(&self, u_id: NodeID) -> Result<(), MissingUError> {
+        match self.neighbor_sets.contains_key(&u_id) {
+            true => Ok(()),
+            false => Err(MissingUError(u_id)),
+        }
+    }
+    pub fn ensure_v(&self, v_id: NodeID) -> Result<(), MissingVError> {
+        match self.neighbor_sets.contains_key(&v_id) {
+            true => Ok(()),
+            false => Err(MissingVError(v_id)),
+        }
+    }
+    pub fn ensure_uv(&self, u_id: NodeID, v_id: NodeID) -> Result<(), MissingNodesError> {
+        match (
+            self.neighbor_sets.contains_key(&u_id),
+            self.neighbor_sets.contains_key(&v_id),
+        ) {
+            (true, true) => Ok(()),
+            (false, true) => Err(MissingNodesError::U(MissingUError(u_id))),
+            (true, false) => Err(MissingNodesError::V(MissingVError(v_id))),
+            (false, false) => Err(MissingNodesError::UV(MissingUVError { u_id, v_id })),
+        }
+    }
+
+    pub fn entry_by_id(&self, u_id: NodeID) -> Result<&NodeEntry<T>, MissingUError> {
+        self.neighbor_sets.get(&u_id).ok_or(MissingUError(u_id))
+    }
+    pub fn entry_mut_by_id(&mut self, u_id: NodeID) -> Result<&mut NodeEntry<T>, MissingUError> {
+        self.neighbor_sets.get_mut(&u_id).ok_or(MissingUError(u_id))
+    }
+    pub fn two_entries_by_id(
+        &self,
         u_id: NodeID,
         v_id: NodeID,
-    ) -> Result<Vec<NodeID>, GetShortestPathError> {
+    ) -> Result<(&NodeEntry<T>, &NodeEntry<T>), MissingNodesError> {
+        let u_maybe = self.entry_by_id(u_id);
+        let v_maybe: Result<&NodeEntry<T>, MissingVError> =
+            self.entry_by_id(v_id).map_err(|e| e.into());
+
+        require_uv_entries(u_maybe, v_maybe)
+    }
+    pub fn two_entries_mut_by_id(
+        &mut self,
+        u_id: NodeID,
+        v_id: NodeID,
+    ) -> Result<(&mut NodeEntry<T>, &mut NodeEntry<T>), MissingNodesError> {
+        let [u_maybe, v_maybe] = self.neighbor_sets.get_disjoint_mut([&u_id, &v_id]);
+
+        require_uv_entries_mut(
+            u_maybe.ok_or(MissingUError(u_id)),
+            v_maybe.ok_or(MissingVError(v_id)),
+        )
     }
 }
 
 #[derive(Debug, Error)]
-#[error("failed to insert {0}, because a node with that ID is already in the graph")]
-pub struct InsertNodeError(NodeID);
+#[error("failed to insert node")]
+pub struct InsertNodeError(#[from] MissingUError);
 
 #[derive(Debug, Error)]
-#[error("failed to remove {0}, because no node with that ID exists in the graph")]
-pub struct RemoveNodeError(NodeID);
+#[error("failed to remove node")]
+pub struct RemoveNodeError(#[from] MissingUError);
 
 #[derive(Debug, Error)]
-#[error("failed to get size of {0}'s component, because no node with that ID exists in the graph")]
-pub struct GetComponentSizeError(NodeID);
+#[error("failed to get size of the component that u is in")]
+pub struct GetComponentSizeError(#[from] MissingUError);
 
 #[derive(Debug, Error)]
-#[error("failed to insert edge due to missing nodes")]
+#[error("failed to insert bidirectional edge between u and v")]
+pub struct InsertBiEdgeError(#[from] MissingNodesError);
+
+#[derive(Debug, Error)]
+#[error("failed to insert edge from u to v")]
 pub struct InsertEdgeError(#[from] MissingNodesError);
 
 #[derive(Debug, Error)]
+#[error("failed to get shortest path")]
+pub struct GetShortestPathError(#[from] MissingNodesError);
+
+#[derive(Debug, Error)]
+#[error("missing node(s)")]
 pub enum MissingNodesError {
-    NeededUAndV(NodeID, NodeID),
-    NeededU(NodeID),
-    NeededV(NodeID),
+    UV(#[from] MissingUVError),
+    U(#[from] MissingUError),
+    V(#[from] MissingVError),
 }
-impl Display for MissingNodesError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NeededUAndV(u, v) => write!(f, "u: {u} and v: {v} were not in the graph"),
-            Self::NeededU(u) => write!(f, "u: {u} was not in the graph"),
-            Self::NeededV(v) => write!(f, "v: {v} was not in the graph"),
-        }
-    }
-}
-impl MissingNodesError {
-    pub fn if_missing(
-        u_exists: bool,
-        u_id: NodeID,
-        v_exists: bool,
-        v_id: NodeID,
-    ) -> Result<(), MissingNodesError> {
-        match (u_exists, v_exists) {
-            (true, true) => Ok(()),
-            (true, false) => Err(MissingNodesError::NeededV(v_id)),
-            (false, true) => Err(MissingNodesError::NeededU(u_id)),
-            (false, false) => Err(MissingNodesError::NeededUAndV(u_id, v_id)),
-        }
+
+#[derive(Debug, Error)]
+#[error("u: {0} was not found in the graph")]
+pub struct MissingUError(NodeID);
+
+impl From<MissingVError> for MissingUError {
+    fn from(value: MissingVError) -> Self {
+        MissingUError(value.0)
     }
 }
 
 #[derive(Debug, Error)]
-#[error("failed to get shortest path due to missing nodes")]
-pub struct GetShortestPathError(#[from] MissingNodesError);
+#[error("v: {0} was not found in the graph")]
+pub struct MissingVError(NodeID);
+
+impl From<MissingUError> for MissingVError {
+    fn from(value: MissingUError) -> Self {
+        MissingVError(value.0)
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("u: {u_id} and v: {v_id} were not found in the graph")]
+pub struct MissingUVError {
+    u_id: NodeID,
+    v_id: NodeID,
+}
+
+pub fn require_uv_entries<'a, 'b, T>(
+    maybe_u: Result<&'a NodeEntry<T>, MissingUError>,
+    maybe_v: Result<&'b NodeEntry<T>, MissingVError>,
+) -> Result<(&'a NodeEntry<T>, &'b NodeEntry<T>), MissingNodesError> {
+    match (maybe_u, maybe_v) {
+        (Ok(u_entry), Ok(v_entry)) => Ok((u_entry, v_entry)),
+        (Err(u_err), Ok(_)) => Err(MissingNodesError::U(u_err)),
+        (Ok(_), Err(v_err)) => Err(MissingNodesError::V(v_err)),
+        (Err(MissingUError(u_id)), Err(MissingVError(v_id))) => {
+            Err(MissingNodesError::UV(MissingUVError { u_id, v_id }))
+        }
+    }
+}
+pub fn require_uv_entries_mut<'a, 'b, T>(
+    maybe_u: Result<&'a mut NodeEntry<T>, MissingUError>,
+    maybe_v: Result<&'b mut NodeEntry<T>, MissingVError>,
+) -> Result<(&'a mut NodeEntry<T>, &'b mut NodeEntry<T>), MissingNodesError> {
+    match (maybe_u, maybe_v) {
+        (Ok(u_entry), Ok(v_entry)) => Ok((u_entry, v_entry)),
+        (Err(u_err), Ok(_)) => Err(MissingNodesError::U(u_err)),
+        (Ok(_), Err(v_err)) => Err(MissingNodesError::V(v_err)),
+        (Err(MissingUError(u_id)), Err(MissingVError(v_id))) => {
+            Err(MissingNodesError::UV(MissingUVError { u_id, v_id }))
+        }
+    }
+}
