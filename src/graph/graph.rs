@@ -7,8 +7,6 @@ use std::{
 
 use thiserror::Error;
 
-use crate::graph::graph::NodesError::{U, UV};
-
 // invariant: next_id is monotonically increasing
 pub struct NodeIDGenerator {
     next_id: u64,
@@ -293,8 +291,8 @@ impl<T> Graph<T> {
         if !(self.contains(s_id) && self.contains(e_id)) {
             return Err(NoSuchNodesError);
         }
-
-        todo!()
+        let mut visited = HashSet::new();
+        self.shortest_path_bfs_visit_iterative(s_id, e_id)
     }
     fn shortest_path_bfs_visit_iterative(
         &self,
