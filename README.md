@@ -5,5 +5,5 @@ All code here written by me for the purposes of learning
 
 # todo
 ## graphs
-- I think it is inconsistent if functions return bool or a custom error type, I should look over that
-- Find another name for MissingNodesError::if_missing and possibly an alternative api for it
+- todo make some error / information types and return them where appropriate
+- make actual tests

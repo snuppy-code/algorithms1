@@ -1,59 +1,23 @@
-use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    fmt::Display,
-    ops::Deref,
-    usize,
-};
-
+use std::collections::{BTreeSet, BinaryHeap, HashMap, HashSet};
 use thiserror::Error;
 
-// invariant: next_id is monotonically increasing
-pub struct NodeIDGenerator {
-    next_id: u64,
-}
-impl NodeIDGenerator {
-    pub fn new() -> Self {
-        NodeIDGenerator { next_id: 0 }
-    }
-    pub fn create_id(&mut self) -> NodeID {
-        self.next_id += 1;
-        NodeID(self.next_id)
-    }
-}
+use crate::graph::graph_types::{Graph, Node, NodeEntry, NodeID, NodeIDGenerator};
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, PartialOrd, Ord)]
-pub struct NodeID(u64);
-
-impl Display for NodeID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "NodeID({})", self.0)
-    }
-}
-
-#[derive(Debug)]
-pub struct Node<T> {
-    pub data: T,
+#[derive(PartialEq, Eq)]
+struct ExplicitOrdNodeID {
+    ord: usize,
     id: NodeID,
 }
-impl<T> Node<T> {
-    pub fn new_node(data: T, id: NodeID) -> Node<T> {
-        Node { data, id }
-    }
-    pub fn id(&self) -> NodeID {
-        self.id
+
+impl Ord for ExplicitOrdNodeID {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.ord.cmp(&other.ord)
     }
 }
-
-#[derive(Debug)]
-pub struct NodeEntry<T> {
-    node: Node<T>,
-    neighbors: HashSet<NodeID>,
-}
-
-/// Directed, unweighted graph.
-pub struct Graph<T> {
-    neighbor_sets: HashMap<NodeID, NodeEntry<T>>,
-    id_generator: NodeIDGenerator,
+impl PartialOrd for ExplicitOrdNodeID {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.ord.cmp(&other.ord))
+    }
 }
 
 impl<T> Graph<T> {
@@ -255,8 +219,7 @@ impl<T> Graph<T> {
     ) -> usize {
         let mut stack = vec![s];
         let mut component_size = 0;
-        while !stack.is_empty() {
-            let u_id = stack.pop().expect("just checked not empty");
+        while let Some(u_id) = stack.pop() {
             let u_neighbors = self.neighbors_ref(u_id).expect("u should be in the graph");
 
             component_size += 1;
@@ -283,6 +246,7 @@ impl<T> Graph<T> {
         s_component_size == self.neighbor_sets.len()
     }
 
+    /// bfs visit iterative
     pub fn shortest_path(
         &self,
         s_id: NodeID,
@@ -292,13 +256,14 @@ impl<T> Graph<T> {
             return Err(NoSuchNodesError);
         }
         let mut visited = HashSet::new();
-        self.shortest_path_bfs_visit_iterative(s_id, e_id)
-    }
-    fn shortest_path_bfs_visit_iterative(
-        &self,
-        s_id: NodeID,
-        e_id: NodeID,
-    ) -> Result<Vec<NodeID>, NoSuchNodesError> {
+        let mut queue = BinaryHeap::new();
+        queue.push(ExplicitOrdNodeID { id: s_id, ord: 0 });
+        while let Some(ExplicitOrdNodeID { id: u_id, ord }) = queue.pop() {
+            visited.insert(u_id);
+            for n in self.neighbors_ref(u_id).expect("should have neighbors") {
+                todo!()
+            }
+        }
         todo!();
     }
 }
